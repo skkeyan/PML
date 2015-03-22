@@ -1,0 +1,66 @@
+---
+title: "Practical Machine Learning - Peer Assignment"
+output: html_document
+---
+
+## Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with.
+
+## Data Loading and Processing
+```{r}
+setwd("E:/rprograms")
+training_raw <- read.csv("pml-training.csv")
+testing_raw <- read.csv("pml-testing.csv")
+
+# Find the relevant columns from the testing set that will be used for prediction
+testing <- testing_raw[,colSums(is.na(testing_raw)) == 0]
+isPredictor <- grepl("belt|[^(fore)]arm|dumbbell|forearm", names(testing))
+predCandidates<- names(testing)[isPredictor]
+colsToInclude <- c("classe", predCandidates)
+
+# Preparing the training dataset
+training <- training_raw[,colsToInclude]
+levels(training$classe)
+
+## Prediction Model Building
+
+# Split the training dataset into train and cross validation set
+require(caret)
+set.seed(10000)
+forTrain <- createDataPartition(training$classe, p=0.7, list=FALSE)
+Data_train <- training[forTrain,]
+Data_cv <- training[-forTrain,]
+
+# Preprocess the training dataset by centering and scaling the parameters
+
+preProc <- preProcess(Data_train[predCandidates], method=c("center","scale"))
+train_postProc <- predict(preProc, Data_train[predCandidates])
+
+# Fit the model
+Fitmodel <- train(Data_train$classe ~ ., data=train_postProc, method="lda")
+
+# Computing the error with cross validation set
+
+train_CV <- predict(preProc, Data_cv[predCandidates])
+predict_CV <- predict(Fitmodel, train_CV)
+confusionMatrix(predict_CV, Data_cv$classe)$overall
+
+# Utilizing the model on the training set to predict 'classe' values
+Data_test <- predict(preProc, testing[predCandidates])
+finalpredict <- predict(Fitmodel, Data_test)
+Data_test <- cbind(finalpredict, Data_test)
+
+# Write out the files
+
+pml_write_files = function(x){
+  n = length(x)
+  path <- "E:/rprograms/answers"
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=file.path(path, filename),quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(finalpredict)
+```
+
